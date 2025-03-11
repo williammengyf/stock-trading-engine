@@ -1,40 +1,37 @@
+import java.util.concurrent.atomic.AtomicReference;
+
 public class StockList {
-    private Node head;
+    private final AtomicReference<StockOrder> head = new AtomicReference<>();
 
-    private class Node {
-        StockOrder order;
-        Node next;
+    public void add(StockOrder order, boolean isBuy) {
+        while (true) {
+            StockOrder prev = null;
+            StockOrder curr = head.get();
 
-        Node(StockOrder order) {
-            this.order = order;
-            this.next = null;
-        }
-    }
-
-    public void add(StockOrder order) {
-        Node node = new Node(order);
-        if (head == null) {
-            head = node;
-        } else {
-            Node temp = head;
-            while (temp.next != null) {
-                temp = temp.next;
+            // Find insertion point based on price priority
+            while (curr != null && isOrdered(curr, order, isBuy)) {
+                prev = curr;
+                curr = curr.getNext();
             }
-            temp.next = node;
+
+            order.compareAndSetNext(null, curr);
+
+            // Attempt to update the list
+            if (prev == null) {
+                if (head.compareAndSet(curr, order)) break;
+            } else {
+                if (prev.compareAndSetNext(curr, order)) break;
+            }
+            // Retry traversal due to concurrent modification
         }
     }
 
-    public StockOrder peek() {
-        return head.order;
+    private boolean isOrdered(StockOrder curr, StockOrder newOrder, boolean isBuy) {
+        return (isBuy && curr.getPrice() >= newOrder.getPrice()) ||
+                (!isBuy && curr.getPrice() <= newOrder.getPrice());
     }
 
-    public void remove() {
-        if (head != null) {
-            head = head.next;
-        }
-    }
-
-    public boolean isEmpty() {
-        return head == null;
+    public StockOrder getHead() {
+        return head.get();
     }
 }
